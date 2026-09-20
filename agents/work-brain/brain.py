@@ -35,6 +35,9 @@ FOLDERS = {"person": "people", "project": "projects", "decision": "decisions"}
 # Header fields that hold a list of note ids rather than a single value.
 LIST_FIELDS = ("links",)
 
+# File names come from titles, and a decision title can be a whole sentence.
+MAX_SLUG = 50
+
 FACT_SEPARATOR = "|"
 SOURCE_PREFIX = "source:"
 PRIVATE_MARK = "private"
@@ -168,13 +171,17 @@ def slugify(title):
     """Turn a title into a file name: ``Marcus Lee`` becomes ``marcus-lee``.
 
     Accents are folded to plain letters so the same name cannot end up in two
-    files, one with an accent and one without.
+    files, one with an accent and one without. Long titles are cut at a word
+    boundary: a decision sentence makes an unreadable file name, and the full
+    title is kept in the note's header anyway.
     """
     plain = unicodedata.normalize("NFKD", title)
     plain = plain.encode("ascii", "ignore").decode("ascii")
     slug = re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-")
     if not slug:
         raise BrainError(f"cannot make a file name from {title!r}")
+    if len(slug) > MAX_SLUG:
+        slug = slug[:MAX_SLUG].rsplit("-", 1)[0]
     return slug
 
 
