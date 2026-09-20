@@ -9,17 +9,31 @@
 <body>
 
 <header>
-  <div class="title">
-    <h1>Decision Log</h1>
-    <p class="tagline">Why did we decide this?</p>
+  <div class="header-top">
+    <div class="title">
+      <h1>Decision Log</h1>
+      <p class="tagline">Why did we decide this?</p>
+    </div>
+    <div class="controls">
+      <label class="mode">
+        <input type="checkbox" id="live-mode">
+        <span id="mode-label">Offline mode</span>
+      </label>
+      <button id="rebuild">Read the notes</button>
+    </div>
   </div>
-  <div class="controls">
-    <label class="mode">
-      <input type="checkbox" id="live-mode">
-      <span id="mode-label">Offline mode</span>
-    </label>
-    <button id="rebuild">Read the notes</button>
-  </div>
+  <p class="intro">
+    Six months from now someone will ask why you built it this way, and nobody
+    will remember. This reads your meeting notes and keeps every decision
+    together with <strong>the reason it was made</strong>, what it overturned,
+    who owns it, and the note each fact came from. Ask it a question, or have a
+    decision explained to the team with anything private held back.
+  </p>
+  <ol class="steps">
+    <li><span class="step-n">1</span> Drop your notes in a folder</li>
+    <li><span class="step-n">2</span> Rules or Claude read them, quoting the source for every fact</li>
+    <li><span class="step-n">3</span> Ask why, or explain it to the team</li>
+  </ol>
 </header>
 
 <form id="ask-form" class="asker">
