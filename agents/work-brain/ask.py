@@ -97,6 +97,22 @@ def search(brain, query, limit=SEARCH_LIMIT, include_private=True):
     return [note for _, note in hits[:limit]]
 
 
+def expand(brain, notes, limit=12):
+    """Add the notes that the hits link to.
+
+    A project note is often the best match for a question while the answer
+    sits one hop away, in a decision linked to it. Following links once is
+    cheap and finds those; following them twice pulls in half the brain.
+    """
+    found = list(notes)
+    for note in notes:
+        for link in note.links:
+            other = brain.get(link)
+            if other is not None and other not in found and len(found) < limit:
+                found.append(other)
+    return found
+
+
 def render_note(note, include_private=True):
     """One note as text for the model: header lines, then dated facts."""
     facts = note.facts if include_private else note.public_facts()
