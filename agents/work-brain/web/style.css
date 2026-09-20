@@ -1,0 +1,187 @@
+/* Work Brain: a local page, so it is plain on purpose. No frameworks, no
+   fonts to download, nothing that phones anywhere. */
+
+:root {
+  --bg: #fbfaf8;
+  --panel: #ffffff;
+  --ink: #1d1c1a;
+  --soft: #6b6862;
+  --line: #e3e0d9;
+  --accent: #2f6f5e;
+  --warn: #9a4a2f;
+  --private: #7a4b8f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17171a;
+    --panel: #1f1f23;
+    --ink: #eceae6;
+    --soft: #9f9c96;
+    --line: #33333a;
+    --accent: #7fc9b1;
+    --warn: #e0906f;
+    --private: #c6a3dc;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 24px 16px 48px;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+header { max-width: 1180px; margin: 0 auto 16px; }
+h1 { margin: 0; font-size: 26px; letter-spacing: -0.01em; }
+h2 { margin: 0 0 4px; font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--soft); }
+h3 { margin: 16px 0 6px; font-size: 14px; }
+
+.sub, .hint { margin: 4px 0 0; color: var(--soft); font-size: 13px; }
+.hint { margin: 0 0 10px; }
+
+.controls { display: flex; gap: 12px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+.mode { display: flex; gap: 7px; align-items: center; font-size: 14px; color: var(--soft); }
+
+button {
+  font: inherit;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+#rebuild { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+#rebuild:hover:not(:disabled) { color: var(--bg); filter: brightness(1.07); }
+
+input[type="text"] {
+  font: inherit;
+  flex: 1;
+  min-width: 0;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+}
+input[type="text"]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+.notice {
+  max-width: 1180px;
+  margin: 0 auto 14px;
+  padding: 9px 13px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 14px;
+}
+.notice.good { border-color: var(--accent); color: var(--accent); }
+.notice.bad { border-color: var(--warn); color: var(--warn); }
+.notice.working { color: var(--soft); }
+
+main {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr 1.2fr 1.3fr;
+  align-items: start;
+}
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+.pane {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.list { list-style: none; margin: 0; padding: 0; }
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+}
+.row:last-child { border-bottom: 0; }
+
+.link {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  color: var(--ink);
+  border-bottom: 1px solid transparent;
+}
+.link:hover:not(:disabled) { color: var(--accent); border-bottom-color: var(--accent); }
+
+.meta { color: var(--soft); font-size: 12px; margin-left: auto; }
+.tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--soft); }
+.tag.private { color: var(--private); border-color: var(--private); }
+.tag.old { color: var(--warn); border-color: var(--warn); }
+
+.group + .group { margin-top: 6px; }
+
+form { display: flex; gap: 8px; margin: 0 0 14px; }
+
+#result { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+#result-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0 0 10px;
+  font: inherit;
+}
+
+details { margin-top: 8px; font-size: 13px; color: var(--soft); }
+summary { cursor: pointer; }
+.source, .skip { font-size: 13px; color: var(--soft); }
+.skip .why { color: var(--warn); }
+.skip .what { color: var(--soft); }
+
+.cut {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--private);
+  border-radius: 8px;
+  color: var(--private);
+  font-size: 13px;
+}
+.cut p { margin: 0 0 4px; }
+
+/* `display: flex` beats the hidden attribute's own `display: none`, so without
+   this rule the closed reader stays a full-screen invisible sheet that eats
+   every click on the page. */
+.reader[hidden] { display: none; }
+
+.reader {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 12, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.reader-box {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  max-width: 760px;
+  width: 100%;
+  max-height: 80vh;
+  overflow: auto;
+  padding: 18px 20px;
+}
+.reader-head { display: flex; align-items: center; gap: 12px; }
+.reader-head h3 { margin: 0; flex: 1; font-size: 16px; }
+#reader-close { border: 0; background: none; font-size: 22px; line-height: 1; padding: 0 4px; }
+#reader-text { white-space: pre-wrap; word-break: break-word; font: 13px/1.6 ui-monospace, monospace; }

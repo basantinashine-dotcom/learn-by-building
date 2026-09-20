@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Work Brain</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header>
+  <h1>Work Brain</h1>
+  <p class="sub" id="paths"></p>
+  <div class="controls">
+    <label class="mode">
+      <input type="checkbox" id="live-mode">
+      <span id="mode-label">Offline mode</span>
+    </label>
+    <button id="rebuild">Read the notes</button>
+  </div>
+</header>
+
+<p class="notice" id="notice" hidden></p>
+
+<main>
+  <section class="pane" id="notes-pane">
+    <h2>Your notes</h2>
+    <p class="hint">What you dropped in the folder. Click one to read it.</p>
+    <ul class="list" id="notes"></ul>
+  </section>
+
+  <section class="pane" id="brain-pane">
+    <h2>The brain</h2>
+    <p class="hint" id="brain-summary">Nothing yet. Press “Read the notes”.</p>
+    <div id="groups"></div>
+  </section>
+
+  <section class="pane" id="work-pane">
+    <h2>Ask</h2>
+    <form id="ask-form">
+      <input type="text" id="question" placeholder="Do we have guest checkout, and who owns it?" autocomplete="off">
+      <button type="submit">Ask</button>
+    </form>
+
+    <h2>Share with the team</h2>
+    <form id="share-form">
+      <input type="text" id="topic" placeholder="checkout redesign" autocomplete="off">
+      <button type="submit">Write an update</button>
+    </form>
+
+    <div id="result" hidden>
+      <h3 id="result-title"></h3>
+      <pre id="result-text"></pre>
+      <div id="result-meta"></div>
+    </div>
+  </section>
+</main>
+
+<div class="reader" id="reader" hidden>
+  <div class="reader-box">
+    <div class="reader-head">
+      <h3 id="reader-title"></h3>
+      <button id="reader-close" aria-label="Close">×</button>
+    </div>
+    <pre id="reader-text"></pre>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
