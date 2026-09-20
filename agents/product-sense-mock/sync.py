@@ -4,7 +4,7 @@ This runs the same three commands you would run by hand inside
 ``context/private``: ``git add -A``, ``git commit``, ``git push``.
 
 The one check that matters most: the folder must be a Git repository in its
-own right. ``context/private`` sits inside the public learn-by-building
+own right. ``context/private`` sits inside the public inspired-products
 checkout, and Git looks upward for a repository. Without the check, a missing
 private repo would make ``git add`` and ``git commit`` land in the *public*
 repository. So ``is_repo`` requires a ``.git`` inside the folder itself and

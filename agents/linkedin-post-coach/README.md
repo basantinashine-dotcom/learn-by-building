@@ -75,4 +75,4 @@ Feedback is subjective and can vary between model runs. Exact quotes and propose
 
 This project does not scrape LinkedIn, log in, publish, schedule, or message anyone. Future model integrations would need their own setup, privacy choices, and evaluations.
 
-Return to [Learn by Building](../../README.md).
+Return to [Inspired Products](../../README.md).
