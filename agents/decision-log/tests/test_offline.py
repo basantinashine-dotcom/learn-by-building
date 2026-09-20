@@ -97,7 +97,7 @@ class BuildTest(unittest.TestCase):
         cls.brain, cls.report = build(load_raw_notes(SAMPLES))
 
     def test_every_sample_note_was_read(self):
-        self.assertEqual(self.report.notes_read, 4)
+        self.assertEqual(self.report.notes_read, 5)
         self.assertEqual(self.report.skipped, [])
 
     def test_people_projects_and_decisions_all_appear(self):

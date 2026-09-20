@@ -1,7 +1,7 @@
-"""Writing something you can post to the team.
+"""Explaining one decision to the team.
 
 Answering a question is for you. Sharing is different: what comes out is read
-by other people, and some of what the brain knows is nobody else's business.
+by other people, and some of what the log knows is nobody else's business.
 
 The guard has two layers, and the reason for two is worth saying plainly.
 
@@ -54,18 +54,20 @@ STOP_WORDS = {
     "will", "would", "next", "last", "about", "into", "out", "up", "off",
 }
 
-SYSTEM = """You write a short update that a team will read.
+SYSTEM = """You explain one decision to a team, in a few plain sentences they \
+could read in a channel.
 
-You are given facts from one person's work brain, each with a date and the note \
-it came from. Write what the team needs to know.
+You are given the decision, the reasons it was made, what it replaced, who owns \
+it and what it touches. Each fact carries a date and the note it came from.
 
 Rules:
+- Lead with the decision and whether it still holds.
+- Then why. The reason is the point of the whole message; if you only have room \
+for one thing, keep the reason.
+- If it overturned an earlier decision, say what changed and what changed it.
+- Name the owner and any date people have to plan around.
 - Use only the facts you are given. Never add context you were not told.
-- Lead with what changed and what it means for the work.
-- Say who owns what, and name dates that people need to plan around.
 - Plain sentences. No headings, no filler, no "I hope this finds you well".
-- If a decision was overturned, say what holds now; mention the old one only if \
-it helps the reader.
 - Six sentences at most. Shorter is better."""
 
 
@@ -164,88 +166,114 @@ def redact(text, brain):
     return " ".join(kept), removed
 
 
-def gather(brain, topic, limit=25):
-    """The public facts worth putting in a summary about ``topic``.
+def find_decision(brain, target):
+    """The decision a request means: an exact id, or the best match for words."""
+    from ask import search  # imported here to keep the modules independent
 
-    Facts come back newest first: an update is about what changed, and an old
-    fact only earns its place when nothing newer fills the space.
+    note = brain.get(target.strip()) if target else None
+    if note is not None and note.type == "decision":
+        return note
+    for hit in search(brain, target, limit=8, include_private=False):
+        if hit.type == "decision":
+            return hit
+    return None
+
+
+def render_card(card):
+    """The decision as text for the model, reasons first."""
+    lines = [
+        f"Decision: {card['title']}",
+        f"Status: {'still holds' if card['status'] == 'current' else 'no longer holds'}",
+        f"Decided: {card['date']}",
+    ]
+    if card["owner"]["title"]:
+        lines.append(f"Owner: {card['owner']['title']}")
+    if card["project"]["title"]:
+        lines.append(f"Project: {card['project']['title']}")
+
+    lines.append("\nWhy it was decided:")
+    lines += [f"- {row['date']} {row['text']} (from {row['source']})" for row in card["why"]]
+    if not card["why"]:
+        lines.append("- (the notes do not say)")
+
+    if card["history"]:
+        lines.append("\nIt replaced:")
+        for old in card["history"]:
+            lines.append(f"- {old['title']} ({old['date']})")
+            lines += [f"  because {row['text']}" for row in old["why"]]
+
+    if card["facts"]:
+        lines.append("\nOther facts on the record:")
+        lines += [f"- {row['date']} {row['text']} (from {row['source']})" for row in card["facts"]]
+
+    if card["affects"]:
+        lines.append("\nIt touches: " + ", ".join(item["title"] for item in card["affects"]))
+    return "\n".join(lines)
+
+
+def offline_explanation(card):
+    """An explanation with no model: the record itself, in reading order."""
+    state = "still holds" if card["status"] == "current" else "no longer holds"
+    lines = [f"{card['title']} — {state}, decided {card['date']}."]
+    if card["owner"]["title"]:
+        lines.append(f"Owner: {card['owner']['title']}.")
+
+    if card["why"]:
+        lines.append("Why:")
+        lines += [f"- {row['text']} [{row['source']}]" for row in card["why"]]
+    else:
+        lines.append("Why: the notes do not say.")
+
+    for old in card["history"]:
+        lines.append(f"It replaced: {old['title']} ({old['date']}).")
+    if card["affects"]:
+        lines.append("It touches: " + ", ".join(item["title"] for item in card["affects"]) + ".")
+    return "\n".join(lines)
+
+
+def explain(brain, target, client=None):
+    """Explain one decision in something you could post to the team.
+
+    The card is built from the public copy, so no private fact reaches the
+    model or the page. The finished text is checked against the real log
+    anyway, and anything echoing a private fact is cut.
     """
-    from ask import expand, search  # imported here to keep the modules independent
+    from ask import decision_card  # imported here to keep the modules independent
 
     public = public_brain(brain)
-    notes = search(public, topic, limit=6, include_private=False)
-    rows = []
-    for note in expand(public, notes):
-        for fact in note.facts:
-            rows.append((fact.date, note, fact))
-    rows.sort(key=lambda row: row[0], reverse=True)
-    return rows[:limit]
-
-
-def render_facts(rows):
-    """The gathered facts as text for the model."""
-    lines = []
-    for date, note, fact in rows:
-        state = " [no longer holds]" if note.replaced_by else ""
-        lines.append(f"- {date} | {note.title}{state} | {fact.text} | from {fact.source}")
-    return "\n".join(lines)
-
-
-def offline_summary(rows, topic):
-    """A summary with no model: the facts themselves, newest first."""
-    if not rows:
-        return f"The brain has nothing public about {topic!r}."
-    lines = [f"Update on {topic} (offline mode lists facts, it does not write prose):"]
-    for date, note, fact in rows:
-        state = " (no longer holds)" if note.replaced_by else ""
-        lines.append(f"- {date} — {note.title}{state}: {fact.text}")
-    return "\n".join(lines)
-
-
-def summarise(brain, topic, client=None):
-    """Write something postable about ``topic``.
-
-    With a client, Claude writes it from public facts only. Without one, you
-    get the facts themselves. Either way the draft is checked against the real
-    brain's private facts before it is returned.
-
-    Returns the text, the facts it was built from, and anything that was cut.
-    """
-    rows = gather(brain, topic)
-    if not rows:
+    note = find_decision(public, target)
+    if note is None:
         return {
-            "text": f"Nothing to share about {topic}: the brain has no public facts on it.",
+            "text": f"No decision in the log matches {target!r}.",
+            "decision": None,
             "used": [],
             "removed": [],
             "mode": "empty",
         }
 
+    card = decision_card(public, note, include_private=False)
+
     if client is None:
-        text, removed = redact(offline_summary(rows, topic), brain)
-        mode = "offline"
+        draft, mode = offline_explanation(card), "offline"
     else:
         response = client.messages.create(
             model=MODEL,
             max_tokens=MAX_TOKENS,
             system=SYSTEM,
-            messages=[{
-                "role": "user",
-                "content": f"Write an update about: {topic}\n\nFacts:\n{render_facts(rows)}",
-            }],
+            messages=[{"role": "user", "content": render_card(card)}],
         )
         draft = " ".join(
             block.text for block in response.content
             if getattr(block, "type", "") == "text"
         ).strip()
-        text, removed = redact(draft, brain)
         mode = "live"
 
+    text, removed = redact(draft, brain)
+    used = [dict(row, note=card["id"]) for row in card["why"] + card["facts"]]
     return {
         "text": text or "Everything in the draft had to be cut. Nothing safe to share.",
-        "used": [
-            {"date": date, "note": note.id, "fact": fact.text, "source": fact.source}
-            for date, note, fact in rows
-        ],
+        "decision": card,
+        "used": used,
         "removed": removed,
         "mode": mode,
     }

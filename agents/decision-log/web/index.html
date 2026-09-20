@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decision Log</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header>
+  <div class="title">
+    <h1>Decision Log</h1>
+    <p class="tagline">Why did we decide this?</p>
+  </div>
+  <div class="controls">
+    <label class="mode">
+      <input type="checkbox" id="live-mode">
+      <span id="mode-label">Offline mode</span>
+    </label>
+    <button id="rebuild">Read the notes</button>
+  </div>
+</header>
+
+<form id="ask-form" class="asker">
+  <input type="text" id="question" autocomplete="off"
+         placeholder="Why do we have guest checkout?">
+  <button type="submit">Ask</button>
+</form>
+
+<p class="notice" id="notice" hidden></p>
+
+<main>
+  <section class="pane" id="log-pane">
+    <div class="pane-head">
+      <h2>The log</h2>
+      <label class="filter">
+        <input type="checkbox" id="only-current">
+        <span>Only what still holds</span>
+      </label>
+    </div>
+    <p class="hint" id="log-summary">Nothing yet. Press “Read the notes”.</p>
+    <ol class="timeline" id="timeline"></ol>
+  </section>
+
+  <section class="pane" id="detail-pane">
+    <h2 id="detail-heading">Pick a decision</h2>
+    <p class="hint" id="detail-hint">
+      Every decision keeps the reason it was made, what it replaced, and the note
+      each fact came from.
+    </p>
+    <div id="detail" hidden></div>
+    <div id="answer" hidden></div>
+  </section>
+</main>
+
+<section class="pane wide" id="cast-pane">
+  <details>
+    <summary>Sources: the notes behind the log</summary>
+    <div class="cast-grid">
+      <div>
+        <h3>Notes you dropped in</h3>
+        <ul class="list" id="notes"></ul>
+      </div>
+      <div>
+        <h3>People and projects</h3>
+        <ul class="list" id="cast"></ul>
+      </div>
+    </div>
+  </details>
+</section>
+
+<div class="reader" id="reader" hidden>
+  <div class="reader-box">
+    <div class="reader-head">
+      <h3 id="reader-title"></h3>
+      <button id="reader-close" aria-label="Close">×</button>
+    </div>
+    <pre id="reader-text"></pre>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -197,7 +197,7 @@ class OfflineAnswerTest(unittest.TestCase):
 
     def test_nothing_matching_says_nothing_matching(self):
         result = offline_answer(self.brain, "zebra")
-        self.assertIn("Nothing in the brain", result["text"])
+        self.assertIn("Nothing in the log", result["text"])
 
     def test_private_facts_can_be_left_out(self):
         result = offline_answer(self.brain, "Marcus", include_private=False)

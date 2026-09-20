@@ -1,10 +1,12 @@
-"""Building a brain with rules only: no AI, no API key, no network.
+"""Building the log with rules only: no AI, no API key, no network.
 
 This reader is deliberately simple-minded. It looks at headings, bullets and
 capitalised names, and follows fixed rules:
 
 * people come from "Attendees:" and "Owner:" lines
 * bullets under "Decisions" become decision notes
+* a decision's reason comes from a "because" clause, or from a bullet earlier
+  in the same note that shares its wording
 * a bullet that starts with someone's name becomes a fact about that person
 * everything else becomes a fact about whatever the note is mainly about
 * bullets under "Private" are marked private
@@ -49,6 +51,15 @@ LEADING_NAME = re.compile(r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*(?::|\b)")
 
 # A decision bullet that overturns an earlier one.
 REVERSAL_WORDS = ("reverses", "replaces", "overturns", "undoes")
+
+# The word that hands a reason over on a plate. "as" is deliberately not here:
+# it matches "as a test", "as agreed", "as soon as", and turns half the note
+# into reasons that explain nothing.
+BECAUSE = re.compile(r"\b(because|since)\b\s+(.+)", re.IGNORECASE)
+
+# How much wording an earlier bullet must share with a decision before the
+# rules will call it the reason for that decision.
+REASON_OVERLAP = 2
 
 # Words too common to prove two decisions are about the same thing.
 STOP_WORDS = {
@@ -182,8 +193,8 @@ class BrainBuilder:
             self.brain[note_id] = Note(type=kind, title=title)
         return self.brain[note_id]
 
-    def add_fact(self, note, date, text, source, private=False):
-        if note.add(Fact(date=date, text=text, source=source, private=private)):
+    def add_fact(self, note, date, text, source, private=False, why=False):
+        if note.add(Fact(date=date, text=text, source=source, private=private, why=why)):
             self.report.facts_added += 1
 
     def connect(self, first, second):
@@ -214,8 +225,34 @@ class BrainBuilder:
         return best
 
 
+def because_clause(bullet):
+    """The reason a bullet states outright: the part after "because"."""
+    match = BECAUSE.search(bullet)
+    if not match:
+        return ""
+    return match.group(2).strip().rstrip(".").strip()
+
+
+def supporting_bullets(raw, title):
+    """Earlier bullets in the same note that look like the reason for a decision.
+
+    A meeting writes the argument first and the decision last, so the reason is
+    usually a discussion bullet a few lines up that talks about the same thing.
+    Sharing two distinctive words is a weak signal, and it is the best a rule
+    can do: see how much better ``live.py`` does with the same notes.
+    """
+    words = key_words(title)
+    found = []
+    for section, bullet in raw.bullets(private=False):
+        if section.heading.strip().lower().startswith(("decision", "action")):
+            continue
+        if len(words & key_words(bullet)) >= REASON_OVERLAP:
+            found.append(bullet)
+    return found
+
+
 def read_note(builder, raw, people, projects):
-    """Turn one raw note into facts, people, projects and decisions."""
+    """Turn one raw note into decisions, reasons, people and projects."""
     date = raw.date
     if not date:
         builder.report.skip(raw.source, raw.title, "no date on the note or its file name")
@@ -230,14 +267,15 @@ def read_note(builder, raw, people, projects):
         named = find_person(one_on_one.group(2), people) or one_on_one.group(2).strip()
         subject = builder.note("person", named)
 
-    # Everyone in the room knows about the subject, and the subject about them.
+    # Everyone in the room is linked to what the note is about. Attendance is
+    # not written down as a fact: "took part in the design review" tells a
+    # reader nothing the link does not already say, and a log full of it is a
+    # log nobody reads.
     for name in raw.people:
         person = builder.note("person", name)
-        if raw.role(name) == "owner":
-            summary = f"Owns {subject.title}." if subject else f"Owns: {raw.title}."
-        else:
-            summary = f"Took part in: {raw.title}."
-        builder.add_fact(person, date, summary, raw.source)
+        if raw.role(name) == "owner" and subject is not None:
+            builder.add_fact(person, date, f"Owns {subject.title}.", raw.source)
+            subject.owner = subject.owner or person.id
         builder.connect(person, subject)
         builder.connect(person, project_note)
 
@@ -254,6 +292,22 @@ def read_note(builder, raw, people, projects):
             builder.connect(decision, owner)
             for name in mentioned_people(bullet, people):
                 builder.connect(decision, builder.note("person", name))
+
+            # Why it was decided: what the bullet says outright, then whatever
+            # earlier in the note argued for it.
+            stated = because_clause(bullet)
+            if stated:
+                builder.add_fact(decision, date, stated[0].upper() + stated[1:],
+                                 raw.source, why=True)
+            for support in supporting_bullets(raw, title):
+                builder.add_fact(decision, date, support, raw.source, why=True)
+
+            if project_note is not None:
+                decision.project = project_note.id
+            if owner is not None:
+                decision.owner = decision.owner or owner.id
+            elif project_note is not None and project_note.owner:
+                decision.owner = decision.owner or project_note.owner
 
             if any(word in bullet.lower() for word in REVERSAL_WORDS):
                 earlier = builder.find_reversed(decision, project_note)

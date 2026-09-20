@@ -1,4 +1,4 @@
-"""Asking the brain a question.
+"""Asking the log a question, usually "why did we decide this?".
 
 Two ways to answer, and the difference is worth understanding.
 
@@ -44,8 +44,13 @@ STOP_WORDS = {
     "about", "any", "have", "has", "had", "can", "could", "should", "would",
 }
 
-SYSTEM = """You answer questions from a work brain: small notes about people, \
-projects and decisions, each fact carrying a date and the note it came from.
+SYSTEM = """You answer questions from a decision log: notes about decisions, \
+the people who made them and the projects they belong to. Every fact carries a \
+date and the note it came from, and a decision's note keeps the reasons it was \
+made under "Why".
+
+The question this log exists to answer is "why did we decide this?", so when a \
+question is about a decision, give the reason, not just the ruling.
 
 Work like this:
 1. search_brain for the question's subject.
@@ -55,7 +60,7 @@ Work like this:
 Rules:
 - Every claim in your answer names the note it came from, like (people/marcus-lee).
 - Facts have dates and decisions can be replaced. When a decision was \
-overturned, say what holds now and what it changed from.
+overturned, say what holds now, what it changed from, and why it changed.
 - If the brain does not answer the question, say so and say what it does have. \
 Never fill a gap with a guess.
 - A fact marked private is yours alone. You may use it, but say "(private)" \
@@ -80,7 +85,12 @@ def score_note(note, wanted, include_private=True):
         return 0
     title_hits = len(wanted & key_words(note.title))
     fact_hits = len(wanted & key_words(" ".join(fact.text for fact in facts)))
-    return title_hits * 2 + fact_hits
+    score = title_hits * 2 + fact_hits
+    if score and note.type == "decision":
+        # This is a decision log. When a person note and a decision note match
+        # a question equally well, the decision is what was being asked about.
+        score += 1
+    return score
 
 
 def search(brain, query, limit=SEARCH_LIMIT, include_private=True):
@@ -113,29 +123,94 @@ def expand(brain, notes, limit=12):
     return found
 
 
+def render_fact(fact):
+    mark = " [private]" if fact.private else ""
+    return f"- {fact.date}{mark} {fact.text} (from {fact.source})"
+
+
 def render_note(note, include_private=True):
-    """One note as text for the model: header lines, then dated facts."""
-    facts = note.facts if include_private else note.public_facts()
+    """One note as text for the model: header lines, the reasons, then the rest."""
     lines = [f"# {note.title} ({note.id})"]
+    if note.status:
+        lines.append(f"status: {note.status}")
+    if note.owner:
+        lines.append(f"owner: {note.owner}")
+    if note.project:
+        lines.append(f"project: {note.project}")
     if note.replaces:
         lines.append(f"replaces: {note.replaces}")
     if note.replaced_by:
         lines.append(f"REPLACED BY: {note.replaced_by} (this is no longer what holds)")
     if note.links:
         lines.append(f"links: {', '.join(note.links)}")
-    lines.append("")
-    for fact in sorted(facts, key=lambda item: item.date):
-        mark = " [private]" if fact.private else ""
-        lines.append(f"- {fact.date}{mark} {fact.text} (from {fact.source})")
-    if not facts:
-        lines.append("- (no facts)")
+
+    reasons = note.reasons(include_private)
+    if reasons:
+        lines += ["", "## Why this was decided"]
+        lines += [render_fact(fact) for fact in sorted(reasons, key=lambda item: item.date)]
+
+    background = note.background(include_private)
+    lines += ["", "## Facts"]
+    lines += [render_fact(fact) for fact in sorted(background, key=lambda item: item.date)]
+    if not background:
+        lines.append("- (none)")
     return "\n".join(lines)
 
 
 def summarise(note, include_private=True):
     """One line about a note, for search results."""
     facts = note.facts if include_private else note.public_facts()
-    return f"{note.id} — {note.title} ({len(facts)} facts, newest {note.updated or 'none'})"
+    state = f", {note.status}" if note.status else ""
+    return f"{note.id} — {note.title} ({len(facts)} facts{state}, newest {note.updated or 'none'})"
+
+
+def fact_row(fact):
+    """One fact as plain data, for the page and for offline answers."""
+    return {
+        "date": fact.date,
+        "text": fact.text,
+        "source": fact.source,
+        "private": fact.private,
+    }
+
+
+def decision_card(brain, note, include_private=True):
+    """Everything a reader needs about one decision, in one object.
+
+    This is the shape the whole product is built around: the ruling, why it was
+    made, what it replaced, who owns it, and what it touches.
+    """
+    from brain import history
+
+    chain = history(brain, note)[1:]  # everything it replaced, newest first
+    affects = [
+        brain[link]
+        for link in note.links
+        if link in brain and brain[link].type != "person" and link != note.project
+    ]
+    owner = brain.get(note.owner)
+    project = brain.get(note.project)
+
+    return {
+        "id": note.id,
+        "title": note.title,
+        "status": note.status,
+        "date": note.updated,
+        "owner": {"id": note.owner, "title": owner.title if owner else ""},
+        "project": {"id": note.project, "title": project.title if project else ""},
+        "why": [fact_row(fact) for fact in sorted(note.reasons(include_private),
+                                                  key=lambda item: item.date)],
+        "facts": [fact_row(fact) for fact in sorted(note.background(include_private),
+                                                    key=lambda item: item.date)],
+        "replaced_by": note.replaced_by,
+        "history": [
+            {"id": old.id, "title": old.title, "date": old.updated,
+             "why": [fact_row(fact) for fact in old.reasons(include_private)]}
+            for old in chain
+        ],
+        "affects": [{"id": other.id, "title": other.title} for other in affects],
+        "sources": sorted({fact.source for fact in note.facts}),
+    }
 
 
 TOOLS = [
@@ -238,11 +313,19 @@ def answer(client, brain, question, include_private=True):
     else:
         text = text or "I had to stop before finishing that one. Try a narrower question."
 
+    cited = cited_notes(text, brain)
     return {
-        "text": text or "I could not answer that from the brain.",
+        "text": text or "I could not answer that from the log.",
         "opened": tools.opened,
         "searches": tools.searches,
-        "cited": cited_notes(text, brain),
+        "cited": cited,
+        # The decisions the answer leaned on, in full, so the page can show the
+        # evidence beside the prose instead of asking you to trust it.
+        "cards": [
+            decision_card(brain, brain[note_id], include_private)
+            for note_id in cited
+            if brain[note_id].type == "decision"
+        ],
     }
 
 
@@ -257,30 +340,57 @@ def cited_notes(text, brain):
 
 
 def offline_answer(brain, question, include_private=True):
-    """Answer with no model: the matching facts, newest first, with sources."""
+    """Answer with no model: the matching decisions and their reasons.
+
+    Decisions come first and in full, because the question this log answers is
+    almost always about one. Anything else that matched follows, briefly.
+    """
     hits = search(brain, question, include_private=include_private)
     if not hits:
         return {
-            "text": "Nothing in the brain matches that.",
+            "text": "Nothing in the log matches that.",
             "opened": [],
             "searches": [question],
             "cited": [],
+            "cards": [],
         }
 
-    lines = ["The brain has these, newest first. (Offline mode does not write answers.)"]
-    for note in hits:
+    found = [note for note in hits if note.type == "decision"]
+    others = [note for note in hits if note.type != "decision"]
+    cards = [decision_card(brain, note, include_private) for note in found[:3]]
+
+    lines = ["Offline mode shows what the log holds; it does not write prose.", ""]
+    for card in cards:
+        state = "still holds" if card["status"] == "current" else "no longer holds"
+        lines.append(f"{card['title']} — {state}, decided {card['date']}")
+        if card["owner"]["title"]:
+            lines.append(f"  owner: {card['owner']['title']}")
+        for reason in card["why"]:
+            mark = " (private)" if reason["private"] else ""
+            lines.append(f"  why{mark}: {reason['text']} [{reason['source']}]")
+        if not card["why"]:
+            lines.append("  why: not recorded in the notes")
+        for old in card["history"]:
+            lines.append(f"  replaced: {old['title']} ({old['date']})")
         lines.append("")
-        lines.append(f"{note.title} ({note.id})")
-        if note.replaced_by:
-            lines.append(f"  no longer holds, replaced by {note.replaced_by}")
-        facts = note.facts if include_private else note.public_facts()
-        for fact in sorted(facts, key=lambda item: item.date, reverse=True)[:4]:
-            mark = " (private)" if fact.private else ""
-            lines.append(f"  {fact.date}{mark} {fact.text} [{fact.source}]")
+
+    if others:
+        lines.append("Also matching:")
+        for note in others[:3]:
+            newest = sorted(
+                note.facts if include_private else note.public_facts(),
+                key=lambda item: item.date,
+                reverse=True,
+            )[:2]
+            lines.append(f"  {note.title} ({note.id})")
+            for fact in newest:
+                mark = " (private)" if fact.private else ""
+                lines.append(f"    {fact.date}{mark} {fact.text} [{fact.source}]")
 
     return {
-        "text": "\n".join(lines),
+        "text": "\n".join(lines).strip(),
         "opened": [note.id for note in hits],
         "searches": [question],
         "cited": [note.id for note in hits],
+        "cards": cards,
     }

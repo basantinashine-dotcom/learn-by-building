@@ -17,7 +17,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
-from web import Handler, WorkBrain
+from web import DecisionLog, Handler
 
 SAMPLES = Path(__file__).resolve().parent.parent / "sample-notes"
 
@@ -26,7 +26,7 @@ class ServerTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.folder = tempfile.TemporaryDirectory()
-        Handler.app = WorkBrain(SAMPLES, Path(cls.folder.name) / "brain", api_key="")
+        Handler.app = DecisionLog(SAMPLES, Path(cls.folder.name) / "log", api_key="")
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         cls.port = cls.server.server_address[1]
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
@@ -60,7 +60,7 @@ class ServerTest(unittest.TestCase):
 
 class PageTest(ServerTest):
     def test_the_page_and_its_two_files_are_served(self):
-        for path, marker in (("/", b"Work Brain"), ("/app.js", b"api("), ("/style.css", b"--ink")):
+        for path, marker in (("/", b"Decision Log"), ("/app.js", b"api("), ("/style.css", b"--ink")):
             status, body = self.get(path)
             self.assertEqual(status, 200)
             self.assertIn(marker, body)
@@ -95,26 +95,54 @@ class GuardTest(ServerTest):
 
 
 class FlowTest(ServerTest):
-    def test_build_then_ask_then_share(self):
+    def test_build_then_ask_then_explain(self):
         status, report = self.post("/api/build", {"mode": "offline"})
         self.assertEqual(status, 200)
-        self.assertEqual(report["notes_read"], 4)
+        self.assertEqual(report["notes_read"], 5)
         self.assertTrue(report["facts_added"])
 
         _, state = self.get("/api/state")
         state = json.loads(state)
-        self.assertEqual(len(state["notes"]), 4)
+        self.assertEqual(len(state["notes"]), 5)
         self.assertFalse(state["can_go_live"])
-        folders = {group["folder"]: group["notes"] for group in state["groups"]}
-        self.assertTrue(folders["people"] and folders["projects"] and folders["decisions"])
+        self.assertTrue(state["decisions"])
+        self.assertTrue(state["cast"])
 
         _, answer = self.post("/api/ask", {"question": "guest checkout", "mode": "offline"})
         self.assertIn("guest checkout", answer["text"].lower())
         self.assertTrue(answer["cited"])
 
-        _, update = self.post("/api/share", {"topic": "checkout redesign", "mode": "offline"})
+        _, update = self.post("/api/explain",
+                              {"target": "decisions/keep-guest-checkout", "mode": "offline"})
         self.assertNotIn("Search team", update["text"])
         self.assertTrue(update["used"])
+        self.assertEqual(update["decision"]["status"], "current")
+
+    def test_the_timeline_is_newest_first_and_flags_reversals(self):
+        self.post("/api/build", {"mode": "offline"})
+        _, body = self.get("/api/state")
+        rows = json.loads(body)["decisions"]
+
+        self.assertEqual([row["date"] for row in rows],
+                         sorted((row["date"] for row in rows), reverse=True))
+        self.assertTrue(any(row["status"] == "reversed" for row in rows))
+        self.assertTrue(any(row["why"] for row in rows))
+
+    def test_one_decision_comes_back_whole(self):
+        self.post("/api/build", {"mode": "offline"})
+        _, body = self.get("/api/decision?id=decisions/keep-guest-checkout")
+        card = json.loads(body)
+
+        self.assertEqual(card["status"], "current")
+        self.assertTrue(card["why"])
+        self.assertTrue(card["history"])
+        self.assertTrue(card["sources"])
+
+    def test_a_note_that_is_not_a_decision_is_not_a_decision(self):
+        self.post("/api/build", {"mode": "offline"})
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            self.get("/api/decision?id=people/marcus-lee")
+        self.assertEqual(caught.exception.code, 404)
 
     def test_the_brain_is_written_to_disk(self):
         self.post("/api/build", {"mode": "offline"})

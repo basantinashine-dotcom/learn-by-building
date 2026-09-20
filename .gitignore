@@ -9,5 +9,6 @@ __pycache__/
 # (product-sense-context); see agents/product-sense-mock/context/README.md.
 agents/product-sense-mock/context/private/
 
-# The brain is generated from your notes; rebuild it rather than commit it.
-agents/work-brain/brain/
+# The log is generated from your notes; rebuild it rather than commit it.
+agents/decision-log/log/
+agents/decision-log/brain/

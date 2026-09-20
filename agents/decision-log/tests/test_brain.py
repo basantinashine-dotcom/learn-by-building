@@ -8,6 +8,8 @@ from brain import (
     BrainError,
     Fact,
     Note,
+    decisions,
+    history,
     load_brain,
     load_note,
     parse_fact,
@@ -17,8 +19,8 @@ from brain import (
 )
 
 
-def fact(date="2026-09-08", text="Guest checkout stays.", source="review.md", private=False):
-    return Fact(date=date, text=text, source=source, private=private)
+def fact(date="2026-09-08", text="Guest checkout stays.", source="review.md", private=False, why=False):
+    return Fact(date=date, text=text, source=source, private=private, why=why)
 
 
 class FactTest(unittest.TestCase):
@@ -86,6 +88,78 @@ class NoteTest(unittest.TestCase):
         self.assertTrue(note.link_to("projects/checkout-redesign"))
         self.assertFalse(note.link_to("projects/checkout-redesign"))
         self.assertFalse(note.link_to("people/priya-shah"))
+
+
+class DecisionTest(unittest.TestCase):
+    """The parts that make this a decision log rather than a pile of notes."""
+
+    def build(self):
+        old = Note(type="decision", title="Remove guest checkout")
+        old.add(fact(date="2026-09-01", text="Guest checkout makes duplicate accounts.",
+                     source="kickoff.md", why=True))
+        new = Note(type="decision", title="Keep guest checkout",
+                   replaces=old.id, owner="people/priya-shah",
+                   project="projects/checkout-redesign")
+        new.add(fact(date="2026-09-08", text="41% of first-time buyers use it.",
+                     source="review.md", why=True))
+        new.add(fact(date="2026-09-08", text="Apple Pay is in scope.", source="review.md"))
+        old.replaced_by = new.id
+        return {old.id: old, new.id: new}
+
+    def test_a_decision_says_whether_it_still_holds(self):
+        brain = self.build()
+        self.assertEqual(brain["decisions/keep-guest-checkout"].status, "current")
+        self.assertEqual(brain["decisions/remove-guest-checkout"].status, "reversed")
+
+    def test_only_decisions_have_a_status(self):
+        self.assertEqual(Note(type="person", title="Marcus Lee").status, "")
+
+    def test_reasons_are_kept_apart_from_background(self):
+        note = self.build()["decisions/keep-guest-checkout"]
+        self.assertEqual([item.text for item in note.reasons()],
+                         ["41% of first-time buyers use it."])
+        self.assertEqual([item.text for item in note.background()],
+                         ["Apple Pay is in scope."])
+
+    def test_a_reason_survives_being_written_and_read_back(self):
+        note = self.build()["decisions/keep-guest-checkout"]
+        copy = parse_note(note.render())
+        self.assertTrue(copy.reasons())
+        self.assertEqual(copy.owner, "people/priya-shah")
+        self.assertEqual(copy.project, "projects/checkout-redesign")
+
+    def test_a_note_writes_its_reasons_under_why(self):
+        text = self.build()["decisions/keep-guest-checkout"].render()
+        self.assertIn("## Why", text)
+        self.assertIn("status: current", text)
+
+    def test_a_fact_seen_again_as_a_reason_is_promoted(self):
+        note = Note(type="decision", title="Keep guest checkout")
+        note.add(fact(text="41% use it.", source="review.md"))
+        note.add(fact(text="41% use it.", source="review.md", why=True))
+        self.assertEqual(len(note.facts), 1)
+        self.assertTrue(note.facts[0].why)
+
+    def test_the_log_is_newest_first_and_keeps_reversals(self):
+        brain = self.build()
+        titles = [note.title for note in decisions(brain)]
+        self.assertEqual(titles, ["Keep guest checkout", "Remove guest checkout"])
+        self.assertEqual([note.title for note in decisions(brain, include_reversed=False)],
+                         ["Keep guest checkout"])
+
+    def test_history_walks_back_through_what_was_replaced(self):
+        brain = self.build()
+        chain = history(brain, brain["decisions/keep-guest-checkout"])
+        self.assertEqual([note.title for note in chain],
+                         ["Keep guest checkout", "Remove guest checkout"])
+
+    def test_a_loop_in_the_chain_cannot_hang_the_log(self):
+        brain = self.build()
+        # Two decisions that each claim to replace the other: a hand-edited log
+        # can say this, and walking it must still end.
+        brain["decisions/remove-guest-checkout"].replaces = "decisions/keep-guest-checkout"
+        chain = history(brain, brain["decisions/keep-guest-checkout"])
+        self.assertEqual(len(chain), 2)
 
 
 class SlugTest(unittest.TestCase):

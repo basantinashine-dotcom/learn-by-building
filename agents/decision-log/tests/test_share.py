@@ -12,15 +12,16 @@ from brain import Fact, Note
 from notes import load_raw_notes
 from offline import build
 from share import (
+    explain,
+    find_decision,
     find_leaks,
-    gather,
     leaks,
-    offline_summary,
+    offline_explanation,
     private_facts,
     public_brain,
     redact,
+    render_card,
     split_sentences,
-    summarise,
 )
 
 SAMPLES = Path(__file__).resolve().parent.parent / "sample-notes"
@@ -128,74 +129,90 @@ class LeakCheckTest(unittest.TestCase):
         self.assertEqual((text, removed), ("All public.", []))
 
 
-class GatherTest(unittest.TestCase):
+class FindDecisionTest(unittest.TestCase):
     def setUp(self):
         self.brain = sample_brain()
 
-    def test_it_finds_facts_about_the_topic(self):
-        rows = gather(self.brain, "checkout redesign")
-        self.assertTrue(rows)
-        self.assertTrue(any("checkout" in note.title.lower() for _, note, _ in rows))
+    def test_an_exact_id_is_taken_as_given(self):
+        found = find_decision(self.brain, "decisions/keep-guest-checkout")
+        self.assertEqual(found.title, "Keep guest checkout")
 
-    def test_it_never_gathers_a_private_fact(self):
-        rows = gather(self.brain, "Marcus")
-        self.assertTrue(all(not fact.private for _, _, fact in rows))
-        self.assertTrue(all("Search team" not in fact.text for _, _, fact in rows))
+    def test_words_find_the_decision_they_describe(self):
+        self.assertEqual(find_decision(self.brain, "guest checkout").type, "decision")
 
-    def test_facts_come_back_newest_first(self):
-        dates = [date for date, _, _ in gather(self.brain, "checkout redesign")]
-        self.assertEqual(dates, sorted(dates, reverse=True))
+    def test_a_person_is_never_returned_as_a_decision(self):
+        found = find_decision(self.brain, "Marcus Lee")
+        self.assertTrue(found is None or found.type == "decision")
 
-    def test_an_overturned_decision_is_labelled(self):
-        rows = gather(self.brain, "guest checkout")
-        text = offline_summary(rows, "guest checkout")
-        self.assertIn("no longer holds", text)
+    def test_nothing_matching_returns_nothing(self):
+        self.assertIsNone(find_decision(self.brain, "zebra"))
 
 
-class SummariseTest(unittest.TestCase):
+class ExplainTest(unittest.TestCase):
     def setUp(self):
         self.brain = sample_brain()
 
-    def test_offline_mode_lists_the_facts(self):
-        result = summarise(self.brain, "checkout redesign")
+    def test_offline_mode_leads_with_the_decision_and_its_reason(self):
+        result = explain(self.brain, "guest checkout")
         self.assertEqual(result["mode"], "offline")
-        self.assertIn("2026-10-20", result["text"])
+        self.assertIn("Keep guest checkout", result["text"])
+        self.assertIn("41%", result["text"])
         self.assertTrue(result["used"])
 
-    def test_offline_mode_shares_nothing_private(self):
-        result = summarise(self.brain, "Marcus")
-        self.assertNotIn("Search team", result["text"])
-        self.assertNotIn("stressed", result["text"])
+    def test_it_says_what_the_decision_replaced(self):
+        result = explain(self.brain, "decisions/keep-guest-checkout")
+        self.assertIn("It replaced: Remove guest checkout", result["text"])
+
+    def test_a_reversed_decision_says_it_no_longer_holds(self):
+        result = explain(self.brain, "decisions/remove-guest-checkout")
+        self.assertIn("no longer holds", result["text"])
+
+    def test_the_card_carries_the_evidence(self):
+        card = explain(self.brain, "guest checkout")["decision"]
+        self.assertEqual(card["status"], "current")
+        self.assertTrue(card["why"])
+        self.assertTrue(card["history"])
+        self.assertTrue(all(row["source"].endswith(".md") for row in card["why"]))
 
     def test_live_mode_is_only_given_public_facts(self):
-        client = FakeClient("Checkout launches 2026-10-20 with Apple Pay.")
-        summarise(self.brain, "Marcus", client=client)
+        client = FakeClient("Guest checkout stays because 41% of new buyers use it.")
+        explain(self.brain, "guest checkout", client=client)
         sent = client.calls[0]["messages"][0]["content"]
+        self.assertIn("Why it was decided", sent)
         self.assertNotIn("Search team", sent)
         self.assertNotIn("stressed", sent)
 
     def test_a_model_that_leaks_anyway_is_caught(self):
         # Layer one has failed by the time this draft exists. Layer two holds.
-        client = FakeClient(f"Checkout is on track. {SECRET}")
-        result = summarise(self.brain, "checkout redesign", client=client)
+        client = FakeClient(f"Guest checkout stays. {SECRET}")
+        result = explain(self.brain, "guest checkout", client=client)
 
         self.assertNotIn("Search team", result["text"])
-        self.assertIn("Checkout is on track.", result["text"])
+        self.assertIn("Guest checkout stays.", result["text"])
         self.assertEqual(len(result["removed"]), 1)
 
     def test_a_draft_that_is_all_leak_leaves_nothing(self):
         client = FakeClient(SECRET)
-        result = summarise(self.brain, "checkout redesign", client=client)
+        result = explain(self.brain, "guest checkout", client=client)
         self.assertIn("Nothing safe to share", result["text"])
 
     def test_every_fact_used_names_its_source(self):
-        result = summarise(self.brain, "checkout redesign")
+        result = explain(self.brain, "guest checkout")
         self.assertTrue(all(row["source"].endswith(".md") for row in result["used"]))
 
-    def test_a_topic_with_nothing_to_say_says_so(self):
-        result = summarise(self.brain, "zebra")
+    def test_a_decision_nobody_has_made_says_so(self):
+        result = explain(self.brain, "zebra")
         self.assertEqual(result["mode"], "empty")
-        self.assertEqual(result["used"], [])
+        self.assertIsNone(result["decision"])
+
+    def test_a_decision_with_no_recorded_reason_admits_it(self):
+        from ask import decision_card
+
+        note = self.brain["decisions/launch-target-2026-10-20"]
+        card = decision_card(self.brain, note)
+        self.assertEqual(card["why"], [])
+        self.assertIn("the notes do not say", offline_explanation(card))
+        self.assertIn("(the notes do not say)", render_card(card))
 
 
 if __name__ == "__main__":

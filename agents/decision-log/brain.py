@@ -1,18 +1,25 @@
-"""The brain: small Markdown notes about people, projects and decisions.
+"""The log: small Markdown notes about decisions, and the people and projects
+around them.
 
 This module is the only place that knows how a note is written to disk. Every
 other part of Work Brain works with ``Note`` and ``Fact`` objects and never
 parses Markdown itself, so the file format can change in one place.
 
-The format is described for humans in ``docs/brain-format.md``. In short, a
-note is a header between ``---`` lines followed by one fact per line:
+The format is described for humans in ``docs/log-format.md``. In short, a note
+is a header between ``---`` lines, then the reasons, then everything else:
 
     ---
     type: decision
     title: Keep guest checkout
+    status: current
     updated: 2026-09-08
+    owner: people/priya-shah
     links: projects/checkout-redesign
     ---
+
+    ## Why
+
+    - 2026-09-08 | 41% of first-time buyers use it. | source: review.md | why
 
     ## Facts
 
@@ -41,6 +48,10 @@ MAX_SLUG = 50
 FACT_SEPARATOR = "|"
 SOURCE_PREFIX = "source:"
 PRIVATE_MARK = "private"
+
+# A fact marked ``why`` is a reason the decision was made, not background. It is
+# what "why did we decide this?" is answered with.
+REASON_MARK = "why"
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -60,6 +71,7 @@ class Fact:
     text: str
     source: str
     private: bool = False
+    why: bool = False
 
     def __post_init__(self):
         if not DATE_PATTERN.match(self.date):
@@ -76,6 +88,8 @@ class Fact:
     def render(self):
         """Write the fact as one Markdown list line."""
         parts = [self.date, self.text.strip(), f"{SOURCE_PREFIX} {self.source}"]
+        if self.why:
+            parts.append(REASON_MARK)
         if self.private:
             parts.append(PRIVATE_MARK)
         return "- " + f" {FACT_SEPARATOR} ".join(parts)
@@ -91,6 +105,8 @@ class Note:
     links: list = field(default_factory=list)
     replaces: str = ""
     replaced_by: str = ""
+    owner: str = ""
+    project: str = ""
 
     def __post_init__(self):
         if self.type not in FOLDERS:
@@ -115,9 +131,26 @@ class Note:
         """The date of the newest fact, or empty for a note with no facts."""
         return max((fact.date for fact in self.facts), default="")
 
+    @property
+    def status(self):
+        """Whether a decision still holds. Other kinds of note have no status."""
+        if self.type != "decision":
+            return ""
+        return "reversed" if self.replaced_by else "current"
+
     def public_facts(self):
         """Every fact that is safe to share outside your own machine."""
         return [fact for fact in self.facts if not fact.private]
+
+    def reasons(self, include_private=True):
+        """The facts that say why: the answer to "why did we decide this?"."""
+        facts = self.facts if include_private else self.public_facts()
+        return [fact for fact in facts if fact.why]
+
+    def background(self, include_private=True):
+        """Everything else the note knows."""
+        facts = self.facts if include_private else self.public_facts()
+        return [fact for fact in facts if not fact.why]
 
     def add(self, fact):
         """Add a fact unless the note already has it.
@@ -131,11 +164,15 @@ class Note:
                 fact.text,
                 fact.source,
             ):
-                if fact.private and not existing.private:
-                    # If the same sentence turns up in a private section, the
-                    # careful reading wins.
+                if (fact.private and not existing.private) or (fact.why and not existing.why):
+                    # If the same sentence turns up again in a private section,
+                    # or as a reason rather than background, the stronger
+                    # reading wins: private because it is the careful choice,
+                    # why because a reason is the more useful reading.
                     self.facts[self.facts.index(existing)] = replace(
-                        existing, private=True
+                        existing,
+                        private=existing.private or fact.private,
+                        why=existing.why or fact.why,
                     )
                 return False
         self.facts.append(fact)
@@ -155,15 +192,24 @@ class Note:
         header = {
             "type": self.type,
             "title": self.title,
+            "status": self.status,
             "updated": self.updated,
+            "owner": self.owner,
+            "project": self.project,
             "links": ", ".join(self.links),
             "replaces": self.replaces,
             "replaced_by": self.replaced_by,
         }
         lines = ["---"]
         lines += [f"{key}: {value}" for key, value in header.items() if value]
-        lines += ["---", "", "## Facts", ""]
-        lines += [fact.render() for fact in self.facts]
+        lines += ["---"]
+
+        reasons = self.reasons()
+        if reasons:
+            lines += ["", "## Why", ""]
+            lines += [fact.render() for fact in reasons]
+        lines += ["", "## Facts", ""]
+        lines += [fact.render() for fact in self.background()]
         return "\n".join(lines) + "\n"
 
 
@@ -194,15 +240,18 @@ def parse_fact(line):
         return None
     source = ""
     private = False
+    why = False
     for part in parts[2:]:
         if part.lower() == PRIVATE_MARK:
             private = True
+        elif part.lower() == REASON_MARK:
+            why = True
         elif part.lower().startswith(SOURCE_PREFIX):
             source = part[len(SOURCE_PREFIX) :].strip()
     if not source:
         return None
     try:
-        return Fact(date=parts[0], text=parts[1], source=source, private=private)
+        return Fact(date=parts[0], text=parts[1], source=source, private=private, why=why)
     except BrainError:
         return None
 
@@ -232,6 +281,8 @@ def parse_note(text):
         links=links,
         replaces=header.get("replaces", ""),
         replaced_by=header.get("replaced_by", ""),
+        owner=header.get("owner", ""),
+        project=header.get("project", ""),
     )
     for line in lines[body_start:]:
         fact = parse_fact(line)
@@ -280,3 +331,32 @@ def load_brain(root):
 def save_brain(root, brain):
     """Write every note in ``brain`` to disk."""
     return [save_note(root, note) for note in brain.values()]
+
+
+def decisions(brain, include_reversed=True):
+    """The log itself: every decision, newest first.
+
+    Reversed decisions are kept by default. A log that hides them cannot
+    answer "what did we change our minds about?", which is half the point.
+    """
+    found = [
+        note
+        for note in brain.values()
+        if note.type == "decision" and (include_reversed or not note.replaced_by)
+    ]
+    return sorted(found, key=lambda note: (note.updated, note.title), reverse=True)
+
+
+def history(brain, note):
+    """A decision and everything it replaced, newest first."""
+    chain = [note]
+    seen = {note.id}
+    current = note
+    while current.replaces and current.replaces not in seen:
+        earlier = brain.get(current.replaces)
+        if earlier is None:
+            break
+        chain.append(earlier)
+        seen.add(earlier.id)
+        current = earlier
+    return chain

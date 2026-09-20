@@ -153,6 +153,45 @@ class PrivacyTest(unittest.TestCase):
         self.assertFalse(is_private_quote("Keep guest checkout.", bullets))
 
 
+class DecisionFieldsTest(unittest.TestCase):
+    """The fields that turn a pile of facts into a decision log."""
+
+    def test_a_reason_is_stored_as_a_reason(self):
+        brain, _ = read_with([[fact(
+            text="41% of first-time buyers use guest checkout.",
+            quote="Priya shared the data: 41% of first-time buyers use guest checkout.",
+            is_reason=True,
+        )]])
+        note = brain["decisions/keep-guest-checkout"]
+        self.assertTrue(note.reasons())
+        self.assertEqual(note.background(), [])
+
+    def test_a_reason_still_needs_a_real_quote(self):
+        brain, report = read_with([[fact(quote="everyone agreed", is_reason=True)]])
+        self.assertEqual(brain, {})
+        self.assertEqual(report.skipped[0]["why"], "quote is not in the note")
+
+    def test_an_owner_and_project_land_in_the_header(self):
+        brain, _ = read_with([[fact(owner="Priya Shah", project="Checkout redesign")]])
+        note = brain["decisions/keep-guest-checkout"]
+        self.assertEqual(note.owner, "people/priya-shah")
+        self.assertEqual(note.project, "projects/checkout-redesign")
+        self.assertIn("people/priya-shah", note.links)
+
+    def test_an_owner_is_only_set_on_a_decision(self):
+        brain, _ = read_with([[fact(
+            subject_type="person",
+            subject_title="Marcus Lee",
+            quote="Keep guest checkout.",
+            owner="Priya Shah",
+        )]])
+        self.assertEqual(brain["people/marcus-lee"].owner, "")
+
+    def test_the_first_owner_named_wins(self):
+        brain, _ = read_with([[fact(owner="Priya Shah"), fact(owner="Marcus Lee")]])
+        self.assertEqual(brain["decisions/keep-guest-checkout"].owner, "people/priya-shah")
+
+
 class ReversalTest(unittest.TestCase):
     def test_a_reversal_is_wired_both_ways(self):
         brain, _ = read_with([[fact(replaces_decision="Remove guest checkout")]])

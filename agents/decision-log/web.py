@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Work Brain in your browser.
+"""The decision log in your browser.
 
     python web.py                 # then open http://127.0.0.1:8766
 
@@ -30,10 +30,10 @@ from pathlib import Path
 
 import live
 import offline
-from ask import answer, offline_answer, render_note
-from brain import FOLDERS, load_brain, save_brain
+from ask import answer, decision_card, offline_answer, render_note
+from brain import decisions, load_brain, save_brain
 from notes import load_raw_notes
-from share import summarise
+from share import explain
 
 HERE = Path(__file__).resolve().parent
 WEB_ROOT = HERE / "web"
@@ -46,8 +46,8 @@ MAX_BODY_BYTES = 64 * 1024
 DEFAULT_PORT = 8766
 
 
-class WorkBrain:
-    """The notes, the brain, and the one lock that keeps them consistent.
+class DecisionLog:
+    """The notes, the log, and the one lock that keeps them consistent.
 
     The browser can fire two requests at once. A rebuild that runs halfway
     through a question would answer from half a brain, so the two never
@@ -101,10 +101,17 @@ class WorkBrain:
                 return answer(self.client(), self.brain, question)
             return offline_answer(self.brain, question)
 
-    def share(self, topic, mode):
+    def explain(self, target, mode):
         with self.lock:
             client = self.client() if mode == "live" else None
-            return summarise(self.brain, topic, client=client)
+            return explain(self.brain, target, client=client)
+
+    def decision(self, note_id):
+        with self.lock:
+            note = self.brain.get(note_id)
+            if note is None or note.type != "decision":
+                raise ValueError(f"No decision called {note_id!r}.")
+            return decision_card(self.brain, note)
 
     def state(self):
         """Everything the page needs to draw itself."""
@@ -118,35 +125,49 @@ class WorkBrain:
                 }
                 for raw in self.raw_notes()
             ]
-            groups = []
-            for kind, folder in FOLDERS.items():
-                items = [note for note in self.brain.values() if note.type == kind]
-                groups.append({
-                    "kind": kind,
-                    "folder": folder,
-                    "notes": sorted(
-                        (
-                            {
-                                "id": note.id,
-                                "title": note.title,
-                                "facts": len(note.facts),
-                                "private": len(note.facts) - len(note.public_facts()),
-                                "updated": note.updated,
-                                "replaced_by": note.replaced_by,
-                            }
-                            for note in items
-                        ),
-                        key=lambda item: item["title"].lower(),
-                    ),
+            log = []
+            for note in decisions(self.brain):
+                reasons = note.reasons()
+                owner = self.brain.get(note.owner)
+                project = self.brain.get(note.project)
+                log.append({
+                    "id": note.id,
+                    "title": note.title,
+                    "status": note.status,
+                    "date": note.updated,
+                    "owner": owner.title if owner else "",
+                    "project": project.title if project else "",
+                    "why": reasons[0].text if reasons else "",
+                    "why_count": len(reasons),
+                    "replaces": note.replaces,
+                    "replaced_by": note.replaced_by,
+                    "private": len(note.facts) - len(note.public_facts()),
                 })
+
+            cast = sorted(
+                (
+                    {
+                        "id": note.id,
+                        "title": note.title,
+                        "kind": note.type,
+                        "facts": len(note.facts),
+                        "private": len(note.facts) - len(note.public_facts()),
+                        "updated": note.updated,
+                    }
+                    for note in self.brain.values()
+                    if note.type != "decision"
+                ),
+                key=lambda item: (item["kind"], item["title"].lower()),
+            )
             report = self.last_report
             return {
                 "notes_dir": str(self.notes_dir),
-                "brain_dir": str(self.brain_dir),
+                "log_dir": str(self.brain_dir),
                 "can_go_live": self.can_go_live,
                 "model": live.MODEL,
                 "notes": notes,
-                "groups": groups,
+                "decisions": log,
+                "cast": cast,
                 "report": None if report is None else {
                     "notes_read": report.notes_read,
                     "facts_added": report.facts_added,
@@ -176,7 +197,7 @@ class WorkBrain:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "WorkBrain/1.0"
+    server_version = "DecisionLog/1.0"
     app = None
 
     def log_message(self, *args):
@@ -230,7 +251,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/state":
             return self.send_json(self.app.state())
 
-        if path in ("/api/raw", "/api/note"):
+        if path in ("/api/raw", "/api/note", "/api/decision"):
             wanted = ""
             for pair in query.split("&"):
                 key, _, value = pair.partition("=")
@@ -239,6 +260,8 @@ class Handler(BaseHTTPRequestHandler):
 
                     wanted = unquote_plus(value)
             try:
+                if path == "/api/decision":
+                    return self.send_json(self.app.decision(wanted))
                 text = (
                     self.app.read_raw(wanted) if path == "/api/raw"
                     else self.app.read_note(wanted)
@@ -274,11 +297,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self.fail("ask something first")
                 return self.send_json(self.app.ask(question, mode))
 
-            if self.path == "/api/share":
-                topic = (payload.get("topic") or "").strip()
-                if not topic:
-                    return self.fail("what should the update be about?")
-                return self.send_json(self.app.share(topic, mode))
+            if self.path == "/api/explain":
+                target = (payload.get("target") or "").strip()
+                if not target:
+                    return self.fail("which decision should I explain?")
+                return self.send_json(self.app.explain(target, mode))
         except ValueError as error:
             return self.fail(str(error))
         except Exception as error:  # an API failure should explain itself
@@ -288,22 +311,22 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Work Brain in your browser.")
+    parser = argparse.ArgumentParser(description="The decision log in your browser.")
     parser.add_argument("--notes", default=str(HERE / "sample-notes"),
                         help="folder of raw notes to read")
-    parser.add_argument("--brain", default=str(HERE / "brain"),
-                        help="folder to keep the brain in")
+    parser.add_argument("--brain", default=str(HERE / "log"),
+                        help="folder to keep the log in")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
 
-    Handler.app = WorkBrain(args.notes, args.brain, os.environ.get("ANTHROPIC_API_KEY", ""))
+    Handler.app = DecisionLog(args.notes, args.brain, os.environ.get("ANTHROPIC_API_KEY", ""))
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     url = f"http://127.0.0.1:{args.port}"
 
-    print(f"Work Brain is at {url}")
+    print(f"The decision log is at {url}")
     print(f"  notes: {args.notes}")
-    print(f"  brain: {args.brain}")
+    print(f"  log:   {args.brain}")
     print("  live mode: " + ("ready" if Handler.app.can_go_live else
                              "off (no ANTHROPIC_API_KEY)"))
     print("Press Ctrl+C to stop.")

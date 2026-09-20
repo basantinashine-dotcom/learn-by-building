@@ -43,8 +43,11 @@ MAX_NOTE_CHARS = 20000
 # A ceiling on what one note may add, so a runaway answer cannot fill the brain.
 MAX_FACTS_PER_NOTE = 40
 
-SYSTEM = """You turn a work note into memory: small facts about people, \
-projects and decisions.
+SYSTEM = """You turn a work note into a decision log: what the team decided, \
+why, and the people and projects around it.
+
+The question the log has to answer, months later, is "why did we decide this?" \
+So a decision without its reason is half a record.
 
 For each fact, give:
 - subject_type: person, project or decision
@@ -60,12 +63,20 @@ include the fact.
 note gives another one.
 - connects: other people, projects or decisions this fact ties the subject to, \
 including ties the note only implies, such as one project waiting on another.
+- is_reason: true when this fact is part of why a decision was made. The \
+evidence, the argument, the number that settled it. Everything else is false.
 - replaces_decision: for a decision that overturns an earlier one, the title of \
 the decision it overturns.
+- owner: for a fact about a decision, the person who owns it, if the note says.
+- project: for a fact about a decision, the project it belongs to.
 
 Rules:
-- A decision is a choice the team made. A launch date or an owner is a fact \
-about the project, not a decision of its own.
+- A decision is a choice the team made. A launch date, an owner or a status \
+update is a fact about the project, not a decision of its own.
+- Every decision should carry at least one is_reason fact when the note gives \
+one. The reason is usually argued earlier in the note than the decision is \
+recorded, often as data someone brought or an objection someone raised.
+- Do not record attendance. "Took part in the review" tells a reader nothing.
 - Give a project facts about itself, not only about the people in the room.
 - Prefer few good facts over many thin ones. Skip pleasantries and scheduling.
 - Never add anything the note does not support."""
@@ -103,7 +114,10 @@ TOOL = {
                                 "required": ["type", "title"],
                             },
                         },
+                        "is_reason": {"type": "boolean"},
                         "replaces_decision": {"type": "string"},
+                        "owner": {"type": "string"},
+                        "project": {"type": "string"},
                     },
                     "required": ["subject_type", "subject_title", "text", "quote", "date"],
                 },
@@ -198,6 +212,7 @@ def read_note(builder, raw, client):
                 text=text,
                 source=raw.source,
                 private=is_private_quote(quote, private_bullets),
+                why=bool(item.get("is_reason")),
             )
         except BrainError as error:
             builder.report.skip(raw.source, text, str(error))
@@ -215,6 +230,22 @@ def read_note(builder, raw, client):
                     builder.connect(subject, builder.note(other.get("type", ""), other.get("title", "")))
                 except BrainError as error:
                     builder.report.skip(raw.source, str(other), str(error))
+
+        if subject.type == "decision":
+            # Who owns it and what it belongs to are properties of the
+            # decision, not facts about it, so they go in the header.
+            for field, kind in (("owner", "person"), ("project", "project")):
+                title = (item.get(field) or "").strip()
+                if not title or getattr(subject, field):
+                    continue
+                try:
+                    other = builder.note(kind, title)
+                except BrainError as error:
+                    builder.report.skip(raw.source, title, str(error))
+                    continue
+                setattr(subject, field, other.id)
+                if not fact.private:
+                    builder.connect(subject, other)
 
         replaced = (item.get("replaces_decision") or "").strip()
         if replaced and subject.type == "decision":

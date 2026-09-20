@@ -26,6 +26,11 @@ PEOPLE_LINE = re.compile(r"^(attendees|owner|present|people)\s*:\s*(.+)", re.IGN
 BULLET = re.compile(r"^\s*[-*]\s+(.*)")
 HEADING = re.compile(r"^(#{1,6})\s+(.*)")
 
+# A bullet wrapped over several lines is still one bullet. Without this, a
+# sentence is cut in half at the margin and the half holding the number, the
+# date or the reason is thrown away.
+CONTINUATION = re.compile(r"^\s{2,}(\S.*)")
+
 # Headings whose bullets are nobody else's business.
 PRIVATE_HEADINGS = ("private", "confidential", "personal")
 
@@ -127,6 +132,11 @@ def parse_raw_note(path):
         bullet = BULLET.match(line)
         if bullet and current and bullet.group(1).strip():
             current.bullets.append(bullet.group(1).strip())
+            continue
+
+        wrapped = CONTINUATION.match(line)
+        if wrapped and current and current.bullets:
+            current.bullets[-1] += " " + wrapped.group(1).strip()
 
     return RawNote(
         source=path.name,
