@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 620"
+     role="img" aria-labelledby="title desc">
+  <title id="title">How the Decision Log works</title>
+  <desc id="desc">Raw notes are read by rules or by Claude. Every fact must carry a quote
+    from the note, or it is thrown away. What survives becomes a decision with its reason,
+    its history and its sources. You can then ask why a decision was made, or have it
+    explained to the team with private facts held back.</desc>
+
+  <style>
+    :root { color-scheme: light dark; }
+    .bg      { fill: #fbfaf8; }
+    .panel   { fill: #ffffff; stroke: #e3e0d9; }
+    .ink     { fill: #1d1c1a; }
+    .soft    { fill: #6b6862; }
+    .line    { stroke: #e3e0d9; fill: none; }
+    .flow    { stroke: #b9b5ac; fill: none; }
+    .accent  { fill: #2f6f5e; }
+    .accentS { stroke: #2f6f5e; fill: none; }
+    .warn    { fill: #9a4a2f; }
+    .warnS   { stroke: #9a4a2f; fill: none; }
+    .priv    { fill: #7a4b8f; }
+    .privS   { stroke: #7a4b8f; fill: none; }
+    .tint    { fill: #2f6f5e; opacity: 0.07; }
+    .tintW   { fill: #9a4a2f; opacity: 0.07; }
+    .tintP   { fill: #7a4b8f; opacity: 0.08; }
+
+    text { font-family: ui-sans-serif, system-ui, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .h    { font-size: 13px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; }
+    .t    { font-size: 15px; font-weight: 650; }
+    .b    { font-size: 13px; }
+    .s    { font-size: 11.5px; }
+    .mono { font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace; font-size: 11.5px; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg    { fill: #17171a; }
+      .panel { fill: #1f1f23; stroke: #33333a; }
+      .ink   { fill: #eceae6; }
+      .soft  { fill: #9f9c96; }
+      .line  { stroke: #33333a; }
+      .flow  { stroke: #4a4a52; }
+      .accent  { fill: #7fc9b1; }
+      .accentS { stroke: #7fc9b1; }
+      .warn    { fill: #e0906f; }
+      .warnS   { stroke: #e0906f; }
+      .priv    { fill: #c6a3dc; }
+      .privS   { stroke: #c6a3dc; }
+      .tint  { fill: #7fc9b1; opacity: 0.1; }
+      .tintW { fill: #e0906f; opacity: 0.1; }
+      .tintP { fill: #c6a3dc; opacity: 0.12; }
+    }
+  </style>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7"
+            orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" class="flow" style="fill: context-stroke; stroke: none;"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="980" height="620"/>
+
+  <!-- ─────────────  1. the notes  ───────────── -->
+  <text class="h soft" x="24" y="34">1 · Your notes</text>
+
+  <g>
+    <rect class="panel" x="24" y="48" width="196" height="74" rx="9" stroke-width="1"/>
+    <text class="t ink" x="38" y="72">Checkout design review</text>
+    <text class="s soft" x="38" y="92">2026-09-08 · Priya, Marcus, Ana</text>
+    <rect class="tint" x="38" y="102" width="120" height="8" rx="4"/>
+    <rect class="tint" x="164" y="102" width="42" height="8" rx="4"/>
+  </g>
+
+  <g>
+    <rect class="panel" x="24" y="132" width="196" height="74" rx="9" stroke-width="1"/>
+    <text class="t ink" x="38" y="156">Deals email review</text>
+    <text class="s soft" x="38" y="176">2026-09-16 · Jordan, Ana, Priya</text>
+    <rect class="tint" x="38" y="186" width="96" height="8" rx="4"/>
+    <rect class="tint" x="140" y="186" width="66" height="8" rx="4"/>
+  </g>
+
+  <g>
+    <rect class="panel" x="24" y="216" width="196" height="88" rx="9" stroke-width="1"/>
+    <text class="t ink" x="38" y="240">1:1 with Marcus</text>
+    <text class="s soft" x="38" y="260">2026-09-12 · Priya, Marcus</text>
+    <rect class="tintP" x="30" y="270" width="184" height="26" rx="6"/>
+    <text class="s priv" x="40" y="287">## Private — his own business</text>
+  </g>
+
+  <text class="s soft" x="24" y="326">Plain Markdown. Your folder, your machine.</text>
+
+  <!-- ─────────────  2. the reader  ───────────── -->
+  <path class="flow" d="M228 176 H 268" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <text class="h soft" x="280" y="34">2 · The reader</text>
+  <rect class="panel" x="280" y="48" width="230" height="256" rx="11" stroke-width="1"/>
+
+  <rect class="tint" x="296" y="66" width="198" height="46" rx="8"/>
+  <text class="t accent" x="310" y="86">Rules</text>
+  <text class="s soft" x="310" y="103">offline · free · predictable</text>
+
+  <rect class="tint" x="296" y="122" width="198" height="46" rx="8"/>
+  <text class="t accent" x="310" y="142">Claude</text>
+  <text class="s soft" x="310" y="159">reads meaning · finds the why</text>
+
+  <line class="line" x1="296" y1="184" x2="494" y2="184" stroke-width="1"/>
+
+  <text class="h warn" x="296" y="206">The gate</text>
+  <text class="b ink" x="296" y="226">Every fact must quote</text>
+  <text class="b ink" x="296" y="243">the note, word for word.</text>
+  <text class="s soft" x="296" y="264">No quote, no fact —</text>
+  <text class="s soft" x="296" y="280">it is dropped and reported.</text>
+  <text class="s soft" x="296" y="296">The model cannot argue with it.</text>
+
+  <!-- ─────────────  3. the log  ───────────── -->
+  <path class="flow" d="M518 176 H 558" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <text class="h soft" x="570" y="34">3 · The log</text>
+
+  <!-- current decision -->
+  <rect class="panel" x="570" y="48" width="386" height="150" rx="11" stroke-width="1"/>
+  <rect class="accent" x="570" y="48" width="4" height="150" rx="2"/>
+  <text class="s soft" x="590" y="72">2026-09-08</text>
+  <rect class="tint" x="666" y="60" width="78" height="17" rx="8.5"/>
+  <text class="s accent" x="678" y="72">still holds</text>
+  <text class="t ink" x="590" y="96">Keep guest checkout</text>
+  <text class="b ink" x="590" y="121">Why: 41% of first-time buyers use it, so</text>
+  <text class="b ink" x="590" y="138">forcing sign-in would make it worse.</text>
+  <text class="mono soft" x="590" y="160">2026-09-08-checkout-design-review.md</text>
+  <text class="s soft" x="590" y="182">owner: Priya Shah · project: Checkout redesign</text>
+
+  <!-- replaced decision -->
+  <path class="warnS" d="M598 198 V 222" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text class="s warn" x="610" y="216">replaces</text>
+
+  <rect class="panel" x="570" y="226" width="386" height="82" rx="11" stroke-width="1"/>
+  <rect class="warn" x="570" y="226" width="4" height="82" rx="2"/>
+  <text class="s soft" x="590" y="250">2026-09-01</text>
+  <rect class="tintW" x="666" y="238" width="70" height="17" rx="8.5"/>
+  <text class="s warn" x="678" y="250">reversed</text>
+  <text class="t soft" x="590" y="274" text-decoration="line-through">Remove guest checkout</text>
+  <text class="s soft" x="590" y="294">Why then: it made duplicate accounts.</text>
+
+  <text class="s soft" x="570" y="330">The old call is kept, with the reason the team believed it.</text>
+
+  <!-- ─────────────  4. what you do with it  ───────────── -->
+  <line class="line" x1="24" y1="360" x2="956" y2="360" stroke-width="1"/>
+  <text class="h soft" x="24" y="392">4 · What you get</text>
+
+  <!-- ask -->
+  <rect class="panel" x="24" y="408" width="452" height="182" rx="11" stroke-width="1"/>
+  <text class="t ink" x="44" y="438">“Why do we have guest checkout?”</text>
+  <rect class="tint" x="44" y="452" width="412" height="76" rx="8"/>
+  <text class="b ink" x="58" y="476">It stays. On 2026-09-08 the team reversed</text>
+  <text class="b ink" x="58" y="494">the Sept 1 call, because 41% of first-time</text>
+  <text class="b ink" x="58" y="512">buyers use guest checkout.</text>
+  <text class="s soft" x="44" y="550">read: decisions/keep-guest-checkout · decisions/remove-guest-checkout</text>
+  <text class="s accent" x="44" y="572">Every claim names the note it came from.</text>
+
+  <!-- share -->
+  <rect class="panel" x="504" y="408" width="452" height="182" rx="11" stroke-width="1"/>
+  <text class="t ink" x="524" y="438">“Explain this to the team”</text>
+
+  <rect class="tintP" x="524" y="452" width="412" height="46" rx="8"/>
+  <text class="s priv" x="538" y="470">Marcus is thinking about moving teams</text>
+  <text class="s priv" x="538" y="489">He has felt stressed by the old code</text>
+  <line class="privS" x1="524" y1="452" x2="936" y2="498" stroke-width="1.5"/>
+  <line class="privS" x1="524" y1="498" x2="936" y2="452" stroke-width="1.5"/>
+
+  <rect class="tint" x="524" y="510" width="412" height="44" rx="8"/>
+  <text class="b ink" x="538" y="530">Guest checkout stays: 41% of first-time buyers</text>
+  <text class="b ink" x="538" y="547">use it. Priya owns it, launch is 2026-10-20.</text>
+
+  <text class="s priv" x="524" y="578">Private facts never reach the draft, and the draft is checked again anyway.</text>
+</svg>
