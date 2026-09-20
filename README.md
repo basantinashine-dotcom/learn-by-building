@@ -1,12 +1,12 @@
-# Learn by Building
+# Inspired Products
 
-Learn data science, ad tech, and product thinking by building.
+Products I built to understand how the ones I admire work.
 
-A growing collection of hands-on projects to explore concepts, experiment with ideas, and learn through code.
+Each project starts with something good that already exists, takes the idea worth learning from, and rebuilds a small honest version of it from scratch. The point is not to clone anything: it is to find out what a product is really made of by making one.
 
-- **Data science:** Explore data, uncover patterns, and interpret results.
-- **Ad tech:** Understand advertising systems, campaign performance, and measurement.
 - **Product management:** Turn problems into products, test hypotheses, and evaluate trade-offs.
+- **Ad tech:** Understand advertising systems, campaign performance, and measurement.
+- **Data science:** Explore data, uncover patterns, and interpret results.
 
 ## Explore the projects
 
@@ -34,7 +34,7 @@ Decision Log runs on your own computer too, reading a folder of Markdown notes. 
 ## Repository structure
 
 ```text
-learn-by-building/
+inspired-products/
 ├── apps/
 │   └── campaign-lab/
 │       ├── .openai/hosting.json
