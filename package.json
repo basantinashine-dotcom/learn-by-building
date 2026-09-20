@@ -6,6 +6,7 @@
   "scripts": {
     "test": "npm --prefix apps/campaign-lab test && npm --prefix agents/linkedin-post-coach test",
     "check": "npm --prefix apps/campaign-lab run check && npm --prefix agents/linkedin-post-coach run check",
-    "test:product-sense": "cd agents/product-sense-mock && python -m unittest discover -s tests -t ."
+    "test:product-sense": "cd agents/product-sense-mock && python -m unittest discover -s tests -t .",
+    "test:decision-log": "cd agents/decision-log && python -m unittest discover -s tests -t ."
   }
 }

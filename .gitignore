@@ -8,3 +8,7 @@ __pycache__/
 # Private reference material for Product Sense Mock. It is its own private repo
 # (product-sense-context); see agents/product-sense-mock/context/README.md.
 agents/product-sense-mock/context/private/
+
+# The log is generated from your notes; rebuild it rather than commit it.
+agents/decision-log/log/
+agents/decision-log/brain/
