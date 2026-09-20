@@ -258,14 +258,23 @@ function renderAnswer(title, data) {
   if (cards.length) renderDetail(cards[0]);
 }
 
-async function select(decisionId) {
+async function select(decisionId, fromHash) {
   app.selected = decisionId;
   try {
     renderDetail(await api(`/api/decision?id=${encodeURIComponent(decisionId)}`));
     renderTimeline();
+    // A decision gets its own address, so "send me the link to that decision"
+    // has an answer. replaceState keeps the page where it is instead of
+    // jumping, and keeps the back button useful.
+    if (!fromHash) history.replaceState(null, '', `#${decisionId}`);
   } catch (error) {
     notice(error.message, 'bad');
   }
+}
+
+function selectFromAddress() {
+  const wanted = decodeURIComponent(location.hash.replace(/^#/, '')).trim();
+  if (wanted.startsWith('decisions/')) select(wanted, true);
 }
 
 async function explainDecision(decisionId) {
@@ -351,6 +360,7 @@ async function refresh() {
   app.state = await api('/api/state');
   renderTimeline();
   renderSources();
+  if (!app.selected) selectFromAddress();
 
   const toggle = $('#live-mode');
   if (!app.state.can_go_live) {
@@ -392,6 +402,7 @@ $('#ask-form').addEventListener('submit', ask);
 $('#live-mode').addEventListener('change', updateModeLabel);
 $('#only-current').addEventListener('change', () => renderTimeline());
 $('#reader-close').addEventListener('click', closeReader);
+window.addEventListener('hashchange', selectFromAddress);
 $('#reader').addEventListener('click', (event) => {
   if (event.target.id === 'reader') closeReader();
 });

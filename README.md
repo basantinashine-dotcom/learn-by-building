@@ -1,12 +1,12 @@
-# Learn by Building
+# Inspired Products
 
-Learn data science, ad tech, and product thinking by building.
+Products I built to understand how the ones I admire work.
 
-A growing collection of hands-on projects to explore concepts, experiment with ideas, and learn through code.
+Each project starts with something good that already exists, takes the idea worth learning from, and rebuilds a small honest version of it from scratch. The point is not to clone anything: it is to find out what a product is really made of by making one.
 
-- **Data science:** Explore data, uncover patterns, and interpret results.
-- **Ad tech:** Understand advertising systems, campaign performance, and measurement.
 - **Product management:** Turn problems into products, test hypotheses, and evaluate trade-offs.
+- **Ad tech:** Understand advertising systems, campaign performance, and measurement.
+- **Data science:** Explore data, uncover patterns, and interpret results.
 
 ## Explore the projects
 
@@ -23,9 +23,9 @@ Product Sense Mock runs on your own computer, in a local browser page or the ter
 
 Decision Log runs on your own computer too, reading a folder of Markdown notes. It also has an offline mode built from rules alone, so you can compare what plain pattern matching manages against what Claude adds.
 
-![How Decision Log works: notes are read by rules or Claude, every fact must quote its note, and what survives becomes a decision with its reason, its history and its sources](agents/decision-log/docs/how-it-works.svg)
+![The Decision Log page: a timeline of decisions with their status and reason, and a panel showing why one was decided, what it replaced, and the note every fact came from](agents/decision-log/docs/screenshot-log.png)
 
-*Decision Log: why a decision was made, what it overturned, and the note each fact came from.*
+*Decision Log, reading the sample notes: ten decisions, two later reversed, four where nobody wrote down why.*
 
 ![Product Sense Mock demo: start page, AI PM prompt demo, debrief, and progress](agents/product-sense-mock/docs/demo.gif)
 
@@ -34,7 +34,7 @@ Decision Log runs on your own computer too, reading a folder of Markdown notes. 
 ## Repository structure
 
 ```text
-learn-by-building/
+inspired-products/
 ├── apps/
 │   └── campaign-lab/
 │       ├── .openai/hosting.json
