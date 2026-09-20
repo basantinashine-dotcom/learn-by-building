@@ -15,10 +15,17 @@ A growing collection of hands-on projects to explore concepts, experiment with i
 | **Campaign Lab** | Practice Instagram campaign decisions, compare one-variable experiments, and trace why simulated results changed. | [Source and instructions](apps/campaign-lab/) · [Web app](https://campaign-lab-instagram.basanti-nashine.chatgpt.site) |
 | **LinkedIn Post Coach** | Design an AI review rubric, preserve an author's voice, and evaluate whether feedback is useful and grounded in the draft. | [Instructions and examples](agents/linkedin-post-coach/) |
 | **Product Sense Mock** | Practice product sense and AI PM interviews against a tool-using agent that probes your answers and scores each stage for your level. AI PM interviews include a live prompt demo you narrate. | [Source and instructions](agents/product-sense-mock/) |
+| **Decision Log** | Turn meeting notes into a log that answers "why did we decide this?". Learn how AI memory is built, why every fact needs a source, and how to keep private notes out of what you share. | [Source and instructions](agents/decision-log/) |
 
 Campaign Lab currently runs in the browser using a fictional simulation. A backend, saved event dataset, and database are future learning milestones, not implemented features.
 
 Product Sense Mock runs on your own computer, in a local browser page or the terminal. It has an offline mode that needs no API key, and a live mode that calls the Anthropic API.
+
+Decision Log runs on your own computer too, reading a folder of Markdown notes. It also has an offline mode built from rules alone, so you can compare what plain pattern matching manages against what Claude adds.
+
+![How Decision Log works: notes are read by rules or Claude, every fact must quote its note, and what survives becomes a decision with its reason, its history and its sources](agents/decision-log/docs/how-it-works.svg)
+
+*Decision Log: why a decision was made, what it overturned, and the note each fact came from.*
 
 ![Product Sense Mock demo: start page, AI PM prompt demo, debrief, and progress](agents/product-sense-mock/docs/demo.gif)
 
@@ -49,6 +56,20 @@ learn-by-building/
 │   │   ├── offline.py
 │   │   ├── product_sense_mock.py
 │   │   ├── session.py
+│   │   ├── web.py
+│   │   ├── requirements.txt
+│   │   └── README.md
+│   ├── decision-log/
+│   │   ├── docs/
+│   │   ├── sample-notes/
+│   │   ├── tests/
+│   │   ├── web/
+│   │   ├── ask.py
+│   │   ├── brain.py
+│   │   ├── live.py
+│   │   ├── notes.py
+│   │   ├── offline.py
+│   │   ├── share.py
 │   │   ├── web.py
 │   │   ├── requirements.txt
 │   │   └── README.md
@@ -93,6 +114,18 @@ python web.py
 ```
 
 A browser tab opens at http://127.0.0.1:8765. Choose the offline script to try it with no API key and no dependencies. To be interviewed by Claude, install `requirements.txt` and set `ANTHROPIC_API_KEY` in the same terminal before starting the server. `python product_sense_mock.py` runs the same interview in the terminal. Its tests run with `npm run test:product-sense` from the root and need neither. See the [agent's README](agents/product-sense-mock/) for the rubric, the flags, and its limitations.
+
+## Try Decision Log locally
+
+From `agents/decision-log`, with Python 3.10 or later:
+
+```sh
+python web.py
+```
+
+A browser tab opens at http://127.0.0.1:8766. Press **Read the notes** and the sample notes become a log of ten decisions, two of which were later reversed. Offline mode needs no API key and no dependencies. For Claude to read the notes instead, install `requirements.txt`, set `ANTHROPIC_API_KEY` in the same terminal, and tick **Live mode**. Point it at your own notes with `--notes path/to/your/notes`.
+
+Its tests run with `npm run test:decision-log` from the root and need no API key. See the [project's README](agents/decision-log/) for the note format, the privacy rules, and its limitations.
 
 ## Deployment
 
